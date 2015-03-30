@@ -52,37 +52,66 @@ def main():
     user_agent = "{0}:wallpaper_downloader:v1 (by /u/{1})".format(os_name, user_name)
     subreddit_name = "wallpapers"
 
+    try:
+        wallpaper_dir = os.path.join(os.environ['HOME'], 'Pictures', 'Wallpapers')
+    except KeyError:
+        # if the user's home directory isn't set then fall back to tmp
+        import tempfile
+        wallpaper_dir = tempfile.gettempdir()
+
     r = praw.Reddit(user_agent = user_agent)
     print('Running')
 
+    wp_downloaded = False
     subreddit = r.get_subreddit(subreddit_name)
     for submission in subreddit.get_hot(limit=10):
+        if submission.is_self:
+            # ignore self posts
+            continue
+
         if submission.url is not None:
-            # todo - need to validate that this is actually an image link
-            break
+            # validate that this is a direct image link and not a link to webpage containing an image
 
-    file_name = urlparse(submission.url).path
-    if file_name[0] == '/':
-        file_name = file_name[1:]
+            file_name = urlparse(submission.url).path
+            if file_name[-1] == '/':
+                continue
 
-    wallpaper_dir = os.path.join(os.environ['HOME'], 'Pictures', 'Wallpapers')
-    print("Downloading: " + submission.url)
-    req = requests.get(submission.url, stream=True)
-    with open(os.path.join(wallpaper_dir, file_name), 'wb') as f:
-        for chunk in req.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-                f.flush()
+            file_ext = os.path.splitext(file_name)[1].lower()
+            if file_ext not in ['.jpg', '.jpeg', '.png']:
+                continue
 
-    if os_name == "linux":
-        os.system("gsettings set org.gnome.desktop.background picture-uri \
-                file://{0}".format(ms.path.join(wallpaper_dir, file_name)))
-    elif sys_type == "windows":
-        print("Not implemented for Windows yet")
+            if file_name[0] == '/':
+                file_name = file_name[1:]
+
+            try:
+                print("Downloading: " + submission.url)
+                req = requests.get(submission.url, stream=True)
+                with open(os.path.join(wallpaper_dir, file_name), 'wb') as f:
+                    for chunk in req.iter_content(chunk_size=1024):
+                        if chunk:
+                            f.write(chunk)
+                            f.flush()
+
+                wp_downloaded = True
+                break
+            except Exception:
+                print("Error downloading... trying next image")
+                continue
+
+
+    if wp_downloaded:
+        if os_name == "linux":
+            os.system("gsettings set org.gnome.desktop.background picture-uri \
+                    file://{0}".format(os.path.join(wallpaper_dir, file_name)))
+        elif sys_type == "windows":
+            print("Not implemented for Windows yet")
+        else:
+            print("Not implemented yet.")
+
+        print("All Done")
+
     else:
-        print("Not implemented yet.")
-
-    print("All Done")
+        raise SystemExit("Could not download Wallpaper")
 
     return
 
