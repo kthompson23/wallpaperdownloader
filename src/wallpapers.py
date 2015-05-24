@@ -67,10 +67,6 @@ def main():
     else:
         raise SystemExit("Only Linux with Gnome3 or Unity or Windows is currently supported.")
 
-    user_name = "openedground"
-    user_agent = "{0}:wallpaper_downloader:v1 (by /u/{1})".format(os_name, user_name)
-    subreddit_name = "wallpapers"
-
     if program_options.save_location is None:
         # user does not want to save the wallpaper
         wallpaper_dir = tempfile.gettempdir()
@@ -87,7 +83,11 @@ def main():
     if not os.access(wallpaper_dir, os.R_OK | os.W_OK):
         raise SystemExit("Cannot write to {0}.".format(wallpaper_dir))
 
-    # return
+    # setup the useragent
+    user_name = "openedground"
+    user_agent = "{0}:wallpaper_downloader:v1 (by /u/{1})".format(os_name, user_name)
+    subreddit_name = "wallpapers"
+
     r = praw.Reddit(user_agent = user_agent)
     print('Running')
 
