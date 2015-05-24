@@ -1,9 +1,11 @@
 # Log into Reddit and download the highest rated wallpaper
+import argparse
 import os
 import praw
 import requests
 from urllib.parse import urlparse
 import sys
+import tempfile
 
 def get_system_info():
     """
@@ -32,7 +34,24 @@ def get_system_info():
 
     return os_name, desktop_env
 
+def parse_args():
+    """
+    Return command-line options passed in by the user
+
+    Param: None
+    Return: program_options - argparse object of options specified by the user
+                            - as commandline arguments
+    """
+    parser = argparse.ArgumentParser(description="Wallpaper Downloader.",
+            epilog="Downloads the most popular wallpaper of the day from /r/wallpapers")
+    parser.add_argument('--save', dest='save_location', nargs='?', const='home',
+            help="Save the downloaded wallpaper. If no save location is provided then ~/Pictures/Wallpapers will be used")
+
+    return parser.parse_args()
+
 def main():
+
+    program_options = parse_args()
 
     os_name, desktop_env = get_system_info()
 
@@ -52,13 +71,23 @@ def main():
     user_agent = "{0}:wallpaper_downloader:v1 (by /u/{1})".format(os_name, user_name)
     subreddit_name = "wallpapers"
 
-    try:
-        wallpaper_dir = os.path.join(os.environ['HOME'], 'Pictures', 'Wallpapers')
-    except KeyError:
-        # if the user's home directory isn't set then fall back to tmp
-        import tempfile
+    if program_options.save_location is None:
+        # user does not want to save the wallpaper
         wallpaper_dir = tempfile.gettempdir()
+    elif program_options.save_location == 'home':
+        try:
+            wallpaper_dir = os.path.join(os.environ['HOME'], 'Pictures', 'Wallpapers')
+        except KeyError:
+            # if the user's home directory isn't set then fall back to tmp
+            wallpaper_dir = tempfile.gettempdir()
+    else:
+        wallpaper_dir = program_options.save_location
 
+    # validate that this location exists and we can read/write to it
+    if not os.access(wallpaper_dir, os.R_OK | os.W_OK):
+        raise SystemExit("Cannot write to {0}.".format(wallpaper_dir))
+
+    # return
     r = praw.Reddit(user_agent = user_agent)
     print('Running')
 
@@ -94,9 +123,14 @@ def main():
 
                 wp_downloaded = True
                 break
-            except Exception:
-                print("Error downloading... trying next image")
+            except PermissionError as ex:
+                raise SystemExit("Could not save file to {0} - {1}".format(wallpaper_dir, ex))
+            except Exception as ex:
+                print("Error downloading - {0}... trying next image".format(ex))
                 continue
+            finally:
+                # close the socket
+                req.close()
 
 
     if wp_downloaded:
