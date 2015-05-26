@@ -1,11 +1,17 @@
 # Log into Reddit and download the highest rated wallpaper
 import argparse
+import hashlib
 import os
 import praw
 import requests
 from urllib.parse import urlparse
+import shutil
 import sys
 import tempfile
+
+# textfile containing md5 hashes of previously downloaded images  so we don't get duplicates
+downloaded_images = os.path.join('resources', 'downloaded_images')
+previous_downloads = {}
 
 def get_system_info():
     """
@@ -49,6 +55,41 @@ def parse_args():
 
     return parser.parse_args()
 
+def validate_unique_image(image_path):
+    """
+    Verify that the image downloaded has been downloaded before or not.
+
+    Param: image_path - relative or absolute path to the image
+    Return: boolean - true if the image is unique
+    """
+
+    is_unique = None
+
+    # get the md5 hash of the downloaded file
+    m = hashlib.md5()
+
+    try:
+        with open(image_path, 'rb') as f:
+            m.update(f.read())
+            image_hash = m.hexdigest()
+
+    except Exception as ex:
+        raise SystemExit("Could not read image {0} - {1}".format(image_path, ex))
+
+    if previous_downloads.get(image_hash, False):
+        is_unique = False
+    else:
+        previous_downloads[image_hash] = True
+        try:
+            with open(downloaded_images, 'a') as f:
+                f.write(image_hash + '\n')
+        except OSError as ex:
+            print("Could not updated list of downloaded images - {0}.".format(ex))
+
+        is_unique = True
+
+    return is_unique
+
 def main():
 
     program_options = parse_args()
@@ -67,21 +108,36 @@ def main():
     else:
         raise SystemExit("Only Linux with Gnome3 or Unity or Windows is currently supported.")
 
+    # always save to the temporary directory first
+    wallpaper_dir = None
+    temp_dir = tempfile.gettempdir()
     if program_options.save_location is None:
         # user does not want to save the wallpaper
-        wallpaper_dir = tempfile.gettempdir()
+        None
     elif program_options.save_location == 'home':
         try:
             wallpaper_dir = os.path.join(os.environ['HOME'], 'Pictures', 'Wallpapers')
         except KeyError:
             # if the user's home directory isn't set then fall back to tmp
-            wallpaper_dir = tempfile.gettempdir()
+            None
     else:
         wallpaper_dir = program_options.save_location
 
     # validate that this location exists and we can read/write to it
-    if not os.access(wallpaper_dir, os.R_OK | os.W_OK):
-        raise SystemExit("Cannot write to {0}.".format(wallpaper_dir))
+    if not os.access(temp_dir, os.R_OK | os.W_OK):
+        raise SystemExit("Cannot write to {0}.".format(temp_dir))
+    if wallpaper_dir is not None:
+        if not os.access(wallpaper_dir, os.R_OK | os.W_OK):
+            raise SystemExit("Cannot write to {0}.".format(wallpaper_dir))
+
+    # build dictionary of md5 hashes of previously downloaded images
+    try:
+        with open(downloaded_images, 'r') as f:
+            for image_hash in f:
+                # get rid of any newlines
+                previous_downloads[image_hash.rstrip()] = True
+    except IOError as ex:
+        print("Could not build list of previously downloaded images - {0}".format(ex))
 
     # setup the useragent
     user_name = "openedground"
@@ -115,14 +171,19 @@ def main():
             try:
                 print("Downloading: " + submission.url)
                 req = requests.get(submission.url, stream=True)
-                with open(os.path.join(wallpaper_dir, file_name), 'wb') as f:
+                with open(os.path.join(temp_dir, file_name), 'wb') as f:
                     for chunk in req.iter_content(chunk_size=1024):
                         if chunk:
                             f.write(chunk)
                             f.flush()
 
-                wp_downloaded = True
-                break
+                unique_image =  validate_unique_image(os.path.join(temp_dir, file_name))
+                if unique_image:
+                    # this is the first time downloading the image
+                    wp_downloaded = True
+                    break
+            except SystemExit:
+                raise
             except PermissionError as ex:
                 raise SystemExit("Could not save file to {0} - {1}".format(wallpaper_dir, ex))
             except Exception as ex:
@@ -134,9 +195,18 @@ def main():
 
 
     if wp_downloaded:
+
+        if wallpaper_dir is not None:
+            # first attempt to copy the wallpaper to the user's chosen directory. If this fails
+            # we will still try to set the wallpaper
+            try:
+                shutil.copyfile(os.path.join(temp_dir, file_name), os.path.join(wallpaper_dir, file_name))
+            except OSError as ex:
+                print("Could not save wallpaper to {0} - {1}".format(os.path.join(wallpaper_dir, file_name), ex))
+
         if os_name == "linux":
             os.system("gsettings set org.gnome.desktop.background picture-uri \
-                    file://{0}".format(os.path.join(wallpaper_dir, file_name)))
+                    file://{0}".format(os.path.join(temp_dir, file_name)))
         elif sys_type == "windows":
             print("Not implemented for Windows yet")
         else:
