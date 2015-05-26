@@ -200,7 +200,7 @@ def main():
             # first attempt to copy the wallpaper to the user's chosen directory. If this fails
             # we will still try to set the wallpaper
             try:
-                shutil.copyfile(os.path.join(temp_dir, file_name), os.path.join(wallpaper_dir, file_name))
+                shutil.copy2(os.path.join(temp_dir, file_name), os.path.join(wallpaper_dir, file_name))
             except OSError as ex:
                 print("Could not save wallpaper to {0} - {1}".format(os.path.join(wallpaper_dir, file_name), ex))
 
