@@ -50,8 +50,8 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Wallpaper Downloader.",
             epilog="Downloads the most popular wallpaper of the day from /r/wallpapers")
-    parser.add_argument('--save', dest='save_location', nargs='?', const='home',
-            help="Save the downloaded wallpaper. If no save location is provided then ~/Pictures/Wallpapers will be used")
+    parser.add_argument('-s', '--save', dest='save_location', action='store',
+            help="Save location of the downloaded wallpaper. If no save location is provided then ~/Pictures/Wallpapers will be used")
 
     return parser.parse_args()
 
@@ -112,14 +112,13 @@ def main():
     wallpaper_dir = None
     temp_dir = tempfile.gettempdir()
     if program_options.save_location is None:
-        # user does not want to save the wallpaper
-        None
-    elif program_options.save_location == 'home':
+        # user did not pass in a save location. Try their home directory
         try:
             wallpaper_dir = os.path.join(os.environ['HOME'], 'Pictures', 'Wallpapers')
         except KeyError:
-            # if the user's home directory isn't set then fall back to tmp
-            None
+            # If the user's home directory isn't set then exit because in the GNOME shell
+            # the set desktop background won't persist through a restart
+            raise SystemExit("Home directory is not set. Set an explicit save location.")
     else:
         wallpaper_dir = program_options.save_location
 
@@ -195,18 +194,15 @@ def main():
 
 
     if wp_downloaded:
-
-        if wallpaper_dir is not None:
-            # first attempt to copy the wallpaper to the user's chosen directory. If this fails
-            # we will still try to set the wallpaper
-            try:
-                shutil.copy2(os.path.join(temp_dir, file_name), os.path.join(wallpaper_dir, file_name))
-            except OSError as ex:
-                print("Could not save wallpaper to {0} - {1}".format(os.path.join(wallpaper_dir, file_name), ex))
+        # first attempt to copy the wallpaper to the user's chosen directory.
+        try:
+            shutil.copy2(os.path.join(temp_dir, file_name), os.path.join(wallpaper_dir, file_name))
+        except OSError as ex:
+            raise SystemExit("Could not save wallpaper to {0} - {1}".format(os.path.join(wallpaper_dir, file_name), ex))
 
         if os_name == "linux":
             os.system("gsettings set org.gnome.desktop.background picture-uri \
-                    file://{0}".format(os.path.join(temp_dir, file_name)))
+                    file://{0}".format(os.path.join(wallpaper_dir, file_name)))
         elif sys_type == "windows":
             print("Not implemented for Windows yet")
         else:
