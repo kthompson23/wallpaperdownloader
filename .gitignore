@@ -38,6 +38,7 @@ eggs/
 .eggs/
 lib/
 lib64/
+lib64
 parts/
 sdist/
 var/
@@ -81,3 +82,8 @@ docs/_build/
 # PyBuilder
 target/
 
+# maintain hashes of previously downloaded images
+resources/
+
+# virtual environment
+virtualenv/
