@@ -100,8 +100,9 @@ def main():
         if desktop_env not in ["gnome", "unity"]:
             raise SystemExit("Only Gnome3 and Unity are currently supported.")
 
-        # import gconf
-        # not sure if python3 bindings exist
+        # import gsettings
+        # TODO - recreate venv with access to site-packages to use PyGObject3
+        # from gi.repository import Gio
     elif os_name == "windows":
         # needed to run some win32.dlls
         import ctypes
@@ -203,6 +204,9 @@ def main():
         if os_name == "linux":
             os.system("gsettings set org.gnome.desktop.background picture-uri \
                     file://{0}".format(os.path.join(wallpaper_dir, file_name)))
+            # gsettings = Gio.Settings.new("org.gnome.desktop.background")
+            # gsettings.set_string("picture-uri", "file://{0}".format(os.path.join(wallpaper_dir, file_name)))
+            None
         elif sys_type == "windows":
             print("Not implemented for Windows yet")
         else:
