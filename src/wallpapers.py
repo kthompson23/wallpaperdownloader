@@ -9,10 +9,6 @@ import shutil
 import sys
 import tempfile
 
-# textfile containing md5 hashes of previously downloaded images  so we don't get duplicates
-downloaded_images = os.path.join('resources', 'downloaded_images')
-previous_downloads = {}
-
 def get_system_info():
     """
     Return os and desktop information
@@ -55,11 +51,14 @@ def parse_args():
 
     return parser.parse_args()
 
-def validate_unique_image(image_path):
+def validate_unique_image(image_path, downloaded_images_file, previous_downloads):
     """
-    Verify that the image downloaded has been downloaded before or not.
+    Verify that the image downloaded has been downloaded before or not. If not, the file storing the md5 hashes will be
+    updated.
 
-    Param: image_path - relative or absolute path to the image
+    Param:  previous_downloads - dictionary of md5 hashes of previously downloaded images
+            downloaded_images_file - location of the file saving the previous downloaded md5 hashes
+            image_path - relative or absolute path to the image
     Return: boolean - true if the image is unique
     """
 
@@ -81,10 +80,10 @@ def validate_unique_image(image_path):
     else:
         previous_downloads[image_hash] = True
         try:
-            with open(downloaded_images, 'a') as f:
+            with open(downloaded_images_file, 'a') as f:
                 f.write(image_hash + '\n')
         except OSError as ex:
-            print("Could not updated list of downloaded images - {0}.".format(ex))
+            print("Could not update list of downloaded images - {0}.".format(ex))
 
         is_unique = True
 
@@ -130,13 +129,24 @@ def main():
             raise SystemExit("Cannot write to {0}.".format(wallpaper_dir))
 
     # build dictionary of md5 hashes of previously downloaded images
-    try:
-        with open(downloaded_images, 'r') as f:
-            for image_hash in f:
-                # get rid of any newlines
-                previous_downloads[image_hash.rstrip()] = True
-    except IOError as ex:
-        print("Could not build list of previously downloaded images - {0}".format(ex))
+    previous_downloads = {}
+    # textfile containing md5 hashes of previously downloaded images  so we don't get duplicates
+    downloaded_images_file = os.path.join('resources', 'downloaded_images')
+    if not os.access('resources', os.F_OK):
+        # directory does not exist, create it.
+        try:
+            os.mkdir('resources')
+        except IOError as ex:
+            print("Could not create 'resources' directory to store list of downloaded images - {0}".format(ex))
+
+    if os.access('resources', os.R_OK | os.W_OK):
+        try:
+            with open(downloaded_images_file, 'r') as f:
+                for image_hash in f:
+                    # get rid of any newlines
+                    previous_downloads[image_hash.rstrip()] = True
+        except IOError as ex:
+            print("Could not build list of previously downloaded images - {0}".format(ex))
 
     # setup the useragent
     user_name = "openedground"
@@ -176,7 +186,8 @@ def main():
                             f.write(chunk)
                             f.flush()
 
-                unique_image =  validate_unique_image(os.path.join(temp_dir, file_name))
+                unique_image =  validate_unique_image(os.path.join(temp_dir, file_name), downloaded_images_file,
+                        previous_downloads)
                 if unique_image:
                     # this is the first time downloading the image
                     wp_downloaded = True
