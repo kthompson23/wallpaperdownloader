@@ -101,8 +101,7 @@ def main():
             raise SystemExit("Only Gnome3 and Unity are currently supported.")
 
         # import gsettings
-        # TODO - recreate venv with access to site-packages to use PyGObject3
-        # from gi.repository import Gio
+        from gi.repository import Gio
     elif os_name == "windows":
         # needed to run some win32.dlls
         import ctypes
@@ -202,11 +201,12 @@ def main():
             raise SystemExit("Could not save wallpaper to {0} - {1}".format(os.path.join(wallpaper_dir, file_name), ex))
 
         if os_name == "linux":
-            os.system("gsettings set org.gnome.desktop.background picture-uri \
-                    file://{0}".format(os.path.join(wallpaper_dir, file_name)))
-            # gsettings = Gio.Settings.new("org.gnome.desktop.background")
-            # gsettings.set_string("picture-uri", "file://{0}".format(os.path.join(wallpaper_dir, file_name)))
-            None
+            if desktop_env in ["gnome", "unity"]:
+                # Gnome3 only for now
+                GNOME_SCHEMA = "org.gnome.desktop.background"
+                GNOME_KEY = "picture-uri"
+                gsettings = Gio.Settings.new(GNOME_SCHEMA)
+                gsettings.set_string(GNOME_KEY, "file://{0}".format(os.path.join(wallpaper_dir, file_name)))
         elif sys_type == "windows":
             print("Not implemented for Windows yet")
         else:
