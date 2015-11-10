@@ -165,17 +165,12 @@ def main():
 
         if submission.url is not None:
             # validate that this is a direct image link and not a link to webpage containing an image
-
             file_name = urlparse(submission.url).path
-            if file_name[-1] == '/':
-                continue
+            file_name = file_name.split('/')[-1]
 
             file_ext = os.path.splitext(file_name)[1].lower()
             if file_ext not in ['.jpg', '.jpeg', '.png']:
                 continue
-
-            if file_name[0] == '/':
-                file_name = file_name[1:]
 
             try:
                 print("Downloading: " + submission.url)
@@ -192,10 +187,9 @@ def main():
                     # this is the first time downloading the image
                     wp_downloaded = True
                     break
-            except SystemExit:
-                raise
+
             except PermissionError as ex:
-                raise SystemExit("Could not save file to {0} - {1}".format(wallpaper_dir, ex))
+                raise PermissionError("Could not save file to {0} - {1}".format(wallpaper_dir, ex))
             except Exception as ex:
                 print("Error downloading - {0}... trying next image".format(ex))
                 continue
